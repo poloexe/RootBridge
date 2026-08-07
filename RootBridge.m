@@ -1,9 +1,8 @@
 #import "Headers/RootBridge.h"
-#import "vendor/apple/dyld_priv.h"
+#import <dlfcn.h>
 
 // ponytail: every current rootless jailbreak (Dopamine, palera1n) roots at
-// /var/jb. If one ever picks a different root, derive this from selfImagePath
-// instead of hardcoding it.
+// /var/jb. If one ever picks a different root, derive this from dli_fname.
 static NSString* const kRootlessPrefix = @"/var/jb";
 
 // A prefix only matches on a path-component boundary: "/Library" must not
@@ -12,29 +11,21 @@ static BOOL path_has_prefix(NSString* path, NSString* prefix) {
     return [path isEqualToString:prefix] || [path hasPrefix:[prefix stringByAppendingString:@"/"]];
 }
 
-@implementation RootBridge
-+ (NSString *)selfImagePath {
-    const void* ret_addr = __builtin_extract_return_addr(__builtin_return_address(0));
-
-    if(ret_addr) {
-        const char* ret_image_name = dyld_image_path_containing_address(ret_addr);
-
-        if(ret_image_name) {
-            return @(ret_image_name);
-        }
-    }
-
-    return nil;
+// The only two roots that move under a rootless prefix.
+static BOOL is_root_path(NSString* path) {
+    return path_has_prefix(path, @"/Library") || path_has_prefix(path, @"/usr");
 }
 
+@implementation RootBridge
 + (BOOL)isJBRootless {
     static BOOL rootless = NO;
     static dispatch_once_t onceToken = 0;
 
     dispatch_once(&onceToken, ^{
-        NSString* image_path = [self selfImagePath];
-        // nil image path -> assume rootless: conservative, prefers /var/jb paths
-        rootless = !(path_has_prefix(image_path, @"/Library") || path_has_prefix(image_path, @"/usr"));
+        // dli_fname for an address in this image = where RootBridge is installed.
+        // dladdr failure -> assume rootless: conservative, prefers /var/jb paths
+        Dl_info info;
+        rootless = !(dladdr((const void*)&path_has_prefix, &info) && is_root_path(@(info.dli_fname)));
     });
 
     return rootless;
@@ -47,10 +38,6 @@ static BOOL path_has_prefix(NSString* path, NSString* prefix) {
 
     // Only jailbreak roots move under /var/jb. Everything else (/var/mobile,
     // /Applications, app bundle paths) exists at the same place either way.
-    if(path_has_prefix(path, @"/Library") || path_has_prefix(path, @"/usr")) {
-        return [kRootlessPrefix stringByAppendingPathComponent:path];
-    }
-
-    return path;
+    return is_root_path(path) ? [kRootlessPrefix stringByAppendingPathComponent:path] : path;
 }
 @end
