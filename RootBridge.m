@@ -22,6 +22,7 @@
 
     dispatch_once(&onceToken, ^{
         NSString* caller_path = [self getCallerPath];
+        // nil image path -> assume rootless: conservative, prefers /var/jb paths
         rootless = !([caller_path hasPrefix:@"/Library"] || [caller_path hasPrefix:@"/usr"]);
     });
 
