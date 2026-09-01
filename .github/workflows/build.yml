@@ -1,23 +1,18 @@
 name: Build RootBridge
-on: [push]
-
+on: [push, workflow_dispatch]
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Install Build Dependencies
-        run: sudo apt-get update && sudo apt-get install -y clang make ldid git
-      - name: Setup Theos
-        run: |
-          git clone --recursive https://github.com/theos/theos.git ~/theos
-          git clone --recursive https://github.com/theos/sdks.git ~/theos/sdks
-      - name: Compile Package
-        run: |
-          export THEOS=~/theos
-          make package THEOS_PACKAGE_SCHEME=rootless TARGET=iphone:clang:latest:14.0 FINALPACKAGE=1
-      - name: Upload Artifact
+      - name: Install Theos
+        run: git clone --recursive https://github.com/theos/theos.git $HOME/theos
+      - name: Build
+        env:
+          THEOS: ${{ github.workspace }}/theos
+        run: make package FINALPACKAGE=1
+      - name: Upload
         uses: actions/upload-artifact@v4
         with:
-          name: rootbridge-deb
+          name: RootBridge-deb
           path: packages/*.deb
