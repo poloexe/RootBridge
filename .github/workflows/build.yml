@@ -2,17 +2,19 @@ name: Build RootBridge
 on: [push, workflow_dispatch]
 jobs:
   build:
-    runs-on: ubuntu-latest
+    runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          submodules: recursive
       - name: Install Theos
-        run: git clone --recursive https://github.com/theos/theos.git $HOME/theos
-      - name: Build
-        env:
-          THEOS: ${{ github.workspace }}/theos
-          THEOS_MAKE_PATH: ${{ github.workspace }}/theos/makefiles
-        run: make package FINALPACKAGE=1
-      - name: Upload
+        uses: Randomblock1/theos-action@v1
+      - name: Build Package
+        run: |
+          mkdir -p packages
+          sed -i '' 's/export THEOS_PACKAGE_DIR = $(CURDIR)/export THEOS_PACKAGE_DIR = $(CURDIR)\/packages/g' Makefile || true
+          make package FINALPACKAGE=1 -j$(sysctl -n hw.ncpu)
+      - name: Upload Deb
         uses: actions/upload-artifact@v4
         with:
           name: RootBridge-deb
